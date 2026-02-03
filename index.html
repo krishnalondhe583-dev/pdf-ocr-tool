@@ -5,17 +5,15 @@
 <title>PDF OCR Tool | Advocate / CSC</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-
 <style>
 body{font-family:Arial;background:#f4f6f8;margin:0}
-.container{max-width:600px;margin:20px auto;background:#fff;padding:20px;border-radius:8px}
+.container{max-width:600px;margin:20px auto;background:#fff;
+padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,.1)}
 h2{text-align:center;color:#1a237e}
-input,select,button,textarea{width:100%;padding:10px;margin:8px 0;font-size:16px}
+input,select,button{width:100%;padding:10px;margin:8px 0;font-size:16px}
 button{background:#1a237e;color:#fff;border:none;border-radius:5px}
-#loading{text-align:center;font-weight:bold;display:none}
-.brand{text-align:center;font-size:13px;color:#555;margin-top:10px}
+#loading{display:none;text-align:center;font-weight:bold}
+.brand{text-align:center;font-size:14px;color:#555;margin-top:10px}
 </style>
 </head>
 
@@ -33,67 +31,55 @@ button{background:#1a237e;color:#fff;border:none;border-radius:5px}
 
 <button onclick="startOCR()">Start OCR</button>
 
-<div id="loading">⏳ Processing PDF… Please wait</div>
+<div id="loading">⏳ Processing… Please wait</div>
 
-<textarea id="result" placeholder="Extracted text will appear here"></textarea>
-
-<button onclick="downloadText()">Download Text</button>
+<div id="download"></div>
 
 <div class="brand">
-Powered by Krishna Londhe | Advocate / CSC
+Powered by Krishna Londhe | Advocate / CSC Tool
 </div>
 </div>
 
 <script>
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-async function startOCR(){
+function startOCR(){
 const file=document.getElementById("pdfFile").files[0];
-if(!file){ alert("Upload PDF"); return; }
+if(!file){alert("Upload PDF first");return;}
 
 document.getElementById("loading").style.display="block";
-document.getElementById("result").value="";
+document.getElementById("download").innerHTML="";
 
 const lang=document.getElementById("lang").value;
-const reader=new FileReader();
-reader.readAsArrayBuffer(file);
+const formData=new FormData();
+formData.append("file",file);
+formData.append("language",lang);
+formData.append("isSearchablePdf","true");
+formData.append("isOverlayRequired","true");
 
-reader.onload=async function(){
-const pdf=await pdfjsLib.getDocument({data:reader.result}).promise;
-let finalText="";
-
-const worker=await Tesseract.createWorker(lang);
-
-for(let i=1;i<=pdf.numPages;i++){
-const page=await pdf.getPage(i);
-const viewport=page.getViewport({scale:2});
-const canvas=document.createElement("canvas");
-canvas.width=viewport.width;
-canvas.height=viewport.height;
-
-await page.render({
-canvasContext:canvas.getContext("2d"),
-viewport
-}).promise;
-
-const { data:{ text }} = await worker.recognize(canvas);
-finalText += text + "\n\n";
-}
-
-await worker.terminate();
-document.getElementById("result").value=finalText;
+fetch("https://api.ocr.space/parse/image",{
+method:"POST",
+headers:{
+apikey:"K81683955688957"
+},
+body:formData
+})
+.then(res=>res.json())
+.then(data=>{
 document.getElementById("loading").style.display="none";
-}
+
+if(data.IsErroredOnProcessing){
+alert("OCR failed: "+data.ErrorMessage);
+return;
 }
 
-function downloadText(){
-const text=document.getElementById("result").value;
-const blob=new Blob([text],{type:"text/plain"});
-const a=document.createElement("a");
-a.href=URL.createObjectURL(blob);
-a.download="ocr-text.txt";
-a.click();
+const pdfUrl=data.SearchablePDFURL;
+document.getElementById("download").innerHTML=
+`<a href="${pdfUrl}" target="_blank">
+<button>⬇ Download Searchable PDF</button></a>`;
+})
+.catch(()=>{
+document.getElementById("loading").style.display="none";
+alert("Server error. Try again.");
+});
 }
 </script>
 </body>
